@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#da1018">
+<meta name="description" content="Libreta de fiado digital para tienditas: anota fiados y abonos y cobra por WhatsApp.">
+<title>Fiadito</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  /* Paleta rojo y blanco, con poco ruido:
+     rojo = marca, acciones y lo que te deben · gris = todo lo demás · verde = solo abonos */
+  :root {
+    --bg: #ffffff;
+    --card: #ffffff;
+    --card2: #f5f5f6;
+    --ink: #17171a;
+    --ink2: #55565c;
+    --muted: #8b8c92;
+    --line: #ececee;
+    --brand: #da1018;
+    --brand2: #b50c13;
+    --brand-ink: #ffffff;
+    --brand-soft: #fdeced;
+    --cta: #da1018;
+    --cta2: #c40e15;
+    --cta-ink: #ffffff;
+    --cta-shadow: rgba(218,16,24,.32);
+    --debe: #da1018;
+    --debe-soft: #fdeced;
+    --warn: #da1018;
+    --warn-soft: #fdeced;
+    --ok: #0e7a40;
+    --ok-soft: #e7f5ec;
+    --ok-ink: #ffffff;
+    --wa: #1faa55;
+    --shadow: 0 1px 3px rgba(0,0,0,.06);
+    --radius: 18px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121112;
+      --card: #1c1a1b;
+      --card2: #252324;
+      --ink: #f4f2f2;
+      --ink2: #bdb8b9;
+      --muted: #8a8485;
+      --line: #2c2829;
+      --brand: #ff5a5f;
+      --brand2: #c8141c;
+      --brand-ink: #ffffff;
+      --brand-soft: #3a1b1d;
+      --cta: #da1018;
+      --cta2: #c40e15;
+      --cta-ink: #ffffff;
+      --cta-shadow: rgba(0,0,0,.4);
+      --debe: #ff5a5f;
+      --debe-soft: #3a1b1d;
+      --warn: #ff5a5f;
+      --warn-soft: #3a1b1d;
+      --ok: #5fd39b;
+      --ok-soft: #16301f;
+      --ok-ink: #04130b;
+      --wa: #2fb879;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh; overscroll-behavior-y: none;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    -webkit-user-select: none; user-select: none;
+  }
+  input, textarea { -webkit-user-select: text; user-select: text; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; padding: 0; }
+  button:focus-visible, input:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 55%, transparent); outline-offset: 2px; }
+  .wrap { max-width: 600px; margin: 0 auto; padding: 0 16px; }
+  .num { font-variant-numeric: tabular-nums; }
+  svg { display: block; }
+
+  /* ---------- Animaciones ---------- */
+  @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes enterR { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  /* "backwards": al terminar no deja transform, así el botón flotante (position: fixed) se queda en pantalla */
+  .view { animation: enter .25s ease backwards; }
+  .view.slide { animation: enterR .25s ease backwards; }
+  .stagger > * { animation: enter .3s ease both; }
+  .stagger > *:nth-child(2) { animation-delay: .03s; } .stagger > *:nth-child(3) { animation-delay: .06s; }
+  .stagger > *:nth-child(4) { animation-delay: .09s; } .stagger > *:nth-child(5) { animation-delay: .12s; }
+  .stagger > *:nth-child(n+6) { animation-delay: .15s; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+  /* ---------- Encabezado ---------- */
+  .hero {
+    background: #da1018;
+    color: #fff; padding: calc(16px + env(safe-area-inset-top)) 0 56px;
+    border-radius: 0 0 28px 28px;
+  }
+  @media (prefers-color-scheme: dark) { .hero { background: #b50c13; } }
+  .hero-top { display: flex; align-items: center; gap: 10px; }
+  .hero-top .hola { font-size: 14px; opacity: .85; }
+  .hero-top .tienda { font-size: 20px; font-weight: 800; line-height: 1.15; }
+  .hero-top .grow { flex: 1; min-width: 0; }
+  .logo { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,.16); display: flex; align-items: center; justify-content: center; flex: none; }
+  .logo svg { width: 24px; height: 24px; }
+  .hero .lbl { margin-top: 18px; font-size: 14px; opacity: .85; }
+  .hero .big { font-size: 42px; font-weight: 850; letter-spacing: -1px; line-height: 1.1; }
+  .hero .sub { font-size: 14px; opacity: .9; margin-top: 2px; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: -40px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+  .stat .k { font-size: 13px; color: var(--ink2); display: flex; align-items: center; gap: 6px; }
+  .stat .k i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .stat .v { font-size: 22px; font-weight: 800; margin-top: 2px; }
+  .stat .s { font-size: 12px; color: var(--muted); }
+
+  .banner {
+    margin-top: 12px; display: flex; gap: 12px; align-items: center;
+    background: var(--warn-soft); color: var(--warn); border-radius: 14px; padding: 12px 14px; font-size: 14px; font-weight: 600; width: 100%; text-align: left;
+  }
+  .banner svg { width: 22px; height: 22px; flex: none; }
+  .banner .grow { flex: 1; }
+  .banner.brand { background: var(--brand-soft); color: var(--brand); }
+
+  /* ---------- Buscar y filtros ---------- */
+  .tools { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 12px 0 6px; }
+  .search { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; }
+  .search svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+  .search input { border: 0; outline: 0; background: transparent; padding: 12px 0; width: 100%; }
+  .filters { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+  .filters::-webkit-scrollbar { display: none; }
+  .fchip { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 14px; font-weight: 600; color: var(--ink2); min-height: 38px; display: flex; gap: 6px; align-items: center; }
+  .fchip .c { font-size: 12px; background: var(--card2); border-radius: 999px; padding: 1px 7px; color: var(--muted); }
+  .fchip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .fchip.on .c { background: rgba(127,127,127,.25); color: inherit; }
+
+  /* ---------- Lista ---------- */
+  .list { display: flex; flex-direction: column; margin-top: 2px; padding-bottom: 80px; }
+  .row { background: var(--card); border-bottom: 1px solid var(--line); display: flex; align-items: center; transition: transform .12s; }
+  .row:active { transform: scale(.985); }
+  .row .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 14px 4px 14px 0; text-align: left; }
+  .avatar { width: 46px; height: 46px; border-radius: 15px; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px;
+    background: var(--card2); color: var(--ink2); }
+  .avatar.lg { width: 64px; height: 64px; border-radius: 20px; font-size: 24px; }
+  .row .info { flex: 1; min-width: 0; }
+  .row .name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .meta { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing: .2px; text-transform: uppercase; }
+  .badge.late { background: var(--warn-soft); color: var(--warn); }
+  .badge.limit { background: var(--debe-soft); color: var(--debe); }
+  .row .amt { text-align: right; padding-right: 4px; }
+  .row .amt .v { font-weight: 800; }
+  .row .amt .v.debe { color: var(--debe); }
+  .row .amt .v.ok { color: var(--ok); font-size: 14px; font-weight: 700; }
+  .quick { width: 44px; height: 44px; margin: 0 0 0 4px; border-radius: 50%; background: var(--card2); color: var(--brand); display: flex; align-items: center; justify-content: center; flex: none; }
+  .quick svg { width: 22px; height: 22px; }
+  .quick:active { transform: scale(.9); }
+
+  .empty { text-align: center; color: var(--ink2); padding: 40px 16px; }
+  .empty h2 { font-size: 19px; color: var(--ink); margin: 14px 0 6px; }
+  .empty .ill { width: 88px; height: 88px; margin: 0 auto; border-radius: 28px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; }
+  .empty .ill svg { width: 46px; height: 46px; }
+
+  .fab {
+    position: fixed; right: max(16px, calc(50% - 284px)); bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 4;
+    background: var(--cta); color: var(--cta-ink); border-radius: 18px;
+    padding: 16px 22px; font-weight: 850; font-size: 17px; display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 8px 22px var(--cta-shadow); transition: transform .12s;
+  }
+  .fab:active { transform: scale(.95); }
+  .fab svg { width: 22px; height: 22px; }
+
+  /* ---------- Barra inferior ---------- */
+  nav.tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav.tabs .in { max-width: 600px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+  nav.tabs button { padding: 9px 0 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  nav.tabs button svg { width: 24px; height: 24px; }
+  nav.tabs button .pill { padding: 3px 18px; border-radius: 999px; transition: background .2s; }
+  nav.tabs button.on { color: var(--brand); }
+  nav.tabs button.on .pill { background: var(--brand-soft); }
+
+  /* ---------- Detalle cliente ---------- */
+  .bar { display: flex; align-items: center; gap: 6px; padding: calc(8px + env(safe-area-inset-top)) 0 8px; }
+  .bar h1 { flex: 1; font-size: 17px; margin: 0; text-align: center; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
+  .icon-btn:active { background: var(--card2); }
+  .icon-btn svg { width: 24px; height: 24px; }
+  .profile { text-align: center; padding: 6px 0 4px; }
+  .profile .avatar { margin: 0 auto; }
+  .profile h2 { margin: 10px 0 2px; font-size: 22px; }
+  .profile .tel { color: var(--muted); font-size: 14px; }
+  .balance { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px; margin-top: 14px; box-shadow: var(--shadow); }
+  .balance .lbl { font-size: 14px; color: var(--ink2); text-align: center; }
+  .balance .big { font-size: 44px; font-weight: 850; text-align: center; letter-spacing: -1px; line-height: 1.15; }
+  .balance .big.debe { color: var(--debe); }
+  .balance .big.ok { color: var(--ok); }
+  .limitbar { margin-top: 12px; }
+  .limitbar .track { height: 8px; border-radius: 8px; background: var(--card2); overflow: hidden; }
+  .limitbar .fill { height: 100%; border-radius: 8px; background: var(--ok); transition: width .5s ease; }
+  .limitbar .fill.mid { background: var(--warn); }
+  .limitbar .fill.over { background: var(--debe); }
+  .limitbar .txt { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .btn { border-radius: 16px; padding: 14px 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; transition: transform .12s; font-size: 16px; }
+  .btn:active { transform: scale(.97); }
+  .btn svg { width: 22px; height: 22px; }
+  .btn.fiar { background: var(--debe-soft); color: var(--debe); }
+  .btn.pagar { background: var(--ok-soft); color: var(--ok); }
+  .btn.wa { background: var(--wa); color: #fff; grid-column: 1 / -1; }
+  .btn.primary { background: var(--cta); color: var(--cta-ink); width: 100%; }
+  .btn.ghost { color: var(--ink2); border: 1px solid var(--line); width: 100%; background: var(--card); }
+  .btn.danger { color: var(--debe); border: 1px solid var(--line); width: 100%; background: var(--card); }
+  .btn:disabled { opacity: .4; }
+
+  h3.sec { font-size: 13px; color: var(--muted); font-weight: 800; margin: 22px 4px 8px; text-transform: uppercase; letter-spacing: .6px; }
+  .group { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .mov { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); width: 100%; text-align: left; }
+  .mov:first-child { border-top: 0; }
+  .mov:active { background: var(--card2); }
+  .mov .ic { width: 36px; height: 36px; border-radius: 12px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .mov .ic svg { width: 18px; height: 18px; }
+  .mov.fiado .ic { background: var(--debe-soft); color: var(--debe); }
+  .mov.pago .ic { background: var(--ok-soft); color: var(--ok); }
+  .mov .info { flex: 1; min-width: 0; }
+  .mov .t { font-weight: 700; }
+  .mov .n { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mov .r { text-align: right; }
+  .mov .r .v { font-weight: 800; }
+  .mov.fiado .r .v { color: var(--debe); }
+  .mov.pago .r .v { color: var(--ok); }
+  .mov .r .s { font-size: 12px; color: var(--muted); }
+
+  /* ---------- Resumen ---------- */
+  .page-title { padding: calc(18px + env(safe-area-inset-top)) 0 4px; }
+  .page-title h1 { margin: 0; font-size: 26px; font-weight: 850; }
+  .page-title p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 12px; box-shadow: var(--shadow); }
+  .card h4 { margin: 0; font-size: 16px; }
+  .card p { margin: 6px 0 0; color: var(--ink2); font-size: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .mini { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px; box-shadow: var(--shadow); }
+  .mini .k { font-size: 12px; color: var(--ink2); }
+  .mini .v { font-size: 18px; font-weight: 800; margin-top: 2px; white-space: nowrap; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--ink2); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .chart { margin-top: 10px; }
+  .chart .day { cursor: pointer; }
+  .chart-detail { margin-top: 8px; font-size: 14px; color: var(--ink2); min-height: 20px; text-align: center; }
+  .chart-detail b { color: var(--ink); }
+  .seg { display: inline-flex; background: var(--card2); border-radius: 12px; padding: 3px; }
+  .seg button { padding: 6px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .rank { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .rank .it { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; text-align: left; width: 100%; }
+  .rank .it .nm { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank .it .v { font-weight: 800; color: var(--debe); font-size: 15px; }
+  .rank .it .tr { grid-column: 1 / -1; height: 8px; border-radius: 8px; background: var(--card2); overflow: hidden; }
+  .rank .it .tr div { height: 100%; border-radius: 8px; background: var(--debe); opacity: .8; }
+  .cobro { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .cobro:first-of-type { border-top: 0; }
+  .cobro .info { flex: 1; min-width: 0; }
+  .cobro .nm { font-weight: 700; }
+  .cobro .s { font-size: 13px; color: var(--muted); }
+  .wa-mini { background: var(--wa); color: #fff; border-radius: 12px; padding: 9px 12px; font-weight: 800; font-size: 14px; display: flex; gap: 6px; align-items: center; }
+  .wa-mini svg { width: 18px; height: 18px; }
+  .wa-mini.sent { background: var(--card2); color: var(--muted); }
+
+  /* ---------- Ajustes ---------- */
+  label.f { display: block; font-size: 14px; color: var(--ink2); margin: 14px 0 6px; font-weight: 700; }
+  .inp { width: 100%; border: 1.5px solid var(--line); background: var(--card2); border-radius: 14px; padding: 13px 14px; outline: 0; }
+  .inp:focus { border-color: var(--brand); background: var(--card); }
+  .stack { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .setrow { display: flex; align-items: center; gap: 12px; }
+  .setrow .ico { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; flex: none; }
+  .setrow .ico svg { width: 22px; height: 22px; }
+  .setrow .grow { flex: 1; }
+
+  /* ---------- Hoja inferior ---------- */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(5,10,7,.45); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
+  .sheet-bg.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11;
+    background: var(--card); border-radius: 26px 26px 0 0;
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+    max-width: 600px; margin: 0 auto; max-height: 94vh; overflow-y: auto;
+    transform: translateY(105%); transition: transform .28s cubic-bezier(.2,.9,.3,1);
+  }
+  .sheet.open { transform: translateY(0); }
+  .grab { width: 44px; height: 5px; border-radius: 5px; background: var(--line); margin: 0 auto 10px; }
+  .sheet h2 { margin: 0 0 4px; font-size: 20px; }
+  .sh-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .sh-head .avatar { width: 40px; height: 40px; border-radius: 13px; font-size: 15px; }
+  .sh-head .grow { flex: 1; min-width: 0; }
+  .sh-head .sub { font-size: 13px; color: var(--muted); }
+  .tipo-tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--card2); border-radius: 14px; padding: 4px; margin: 6px 0 10px; }
+  .tipo-tabs button { padding: 10px; border-radius: 11px; font-weight: 800; color: var(--muted); }
+  .tipo-tabs button.on.fiado { background: var(--debe); color: #fff; }
+  .tipo-tabs button.on.pago { background: var(--ok); color: var(--ok-ink); }
+
+  .display { background: var(--card2); border-radius: 18px; padding: 12px 16px; text-align: right; }
+  .display .expr { font-size: 15px; color: var(--muted); min-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
+  .display .val { font-size: 40px; font-weight: 850; letter-spacing: -1px; line-height: 1.15; }
+  .display.fiado .val { color: var(--debe); }
+  .display.pago .val { color: var(--ok); }
+  .display.shake { animation: shake .3s; }
+  .after { font-size: 13px; color: var(--ink2); text-align: right; margin-top: 6px; min-height: 18px; }
+  .after.warn { color: var(--debe); font-weight: 700; }
+
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 4px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 7px 13px; font-weight: 700; font-size: 14px; min-height: 38px; color: var(--ink2); }
+  .chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chip.money { color: var(--ink); }
+  .note-inp { margin-top: 6px; }
+
+  .pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .key { min-height: 56px; border-radius: 16px; background: var(--card2); font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: transform .08s, background .1s; }
+  .key:active { transform: scale(.93); background: var(--line); }
+  .key svg { width: 26px; height: 26px; }
+  .key.op { color: var(--brand); font-size: 28px; }
+  .key.ok { grid-row: span 2; font-size: 17px; font-weight: 800; flex-direction: column; gap: 4px; }
+  .key.ok.fiado { background: var(--debe); color: #fff; }
+  .key.ok.pago { background: var(--ok); color: var(--ok-ink); }
+  .key.ok:disabled { opacity: .45; }
+
+  .done { text-align: center; padding: 28px 0 16px; }
+  .done .ck { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; animation: pop .35s ease both; }
+  .done.fiado .ck { background: var(--debe-soft); color: var(--debe); }
+  .done.pago .ck { background: var(--ok-soft); color: var(--ok); }
+  .done .ck svg { width: 46px; height: 46px; }
+  .done .ck path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw .35s .15s ease forwards; }
+  .done h2 { margin: 14px 0 2px; }
+  .done p { margin: 0; color: var(--ink2); }
+
+  .pick { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; margin-top: 10px; }
+  .pick button { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; text-align: left; }
+  .pick button:active { background: var(--card2); }
+  .pick .avatar { width: 40px; height: 40px; border-radius: 13px; font-size: 15px; }
+  .pick .grow { flex: 1; min-width: 0; font-weight: 700; }
+  .pick .s { font-size: 14px; font-weight: 800; color: var(--debe); }
+
+  /* ---------- Bienvenida ---------- */
+  .splash {
+    position: fixed; inset: 0; z-index: 6; background: #da1018; color: #fff; text-align: center;
+    display: flex; flex-direction: column;
+    padding: calc(40px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  }
+  .splash-in { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .logo-big { width: 116px; height: 116px; border-radius: 34px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 14px 34px rgba(0,0,0,.18); animation: pop .5s ease both; }
+  .logo-big svg { width: 68px; height: 68px; }
+  .wordmark { font-size: 54px; font-weight: 900; letter-spacing: -1.5px; margin: 24px 0 2px; line-height: 1; }
+  .tag { font-size: 21px; font-weight: 600; margin: 8px 0 0; opacity: .92; }
+  .splash-actions { width: 100%; max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; }
+  .btn.white { background: #fff; color: #da1018; width: 100%; }
+  .btn.big { min-height: 60px; font-size: 18px; border-radius: 18px; }
+  .link { color: #fff; font-weight: 700; padding: 16px; opacity: .9; }
+
+  /* ---------- Aviso ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: calc(158px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+    background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 16px; font-weight: 700;
+    z-index: 20; display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 32px);
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .toast .msg { padding: 4px 0; }
+  .toast button { color: #ff8a8e; background: color-mix(in srgb, var(--bg) 12%, transparent); padding: 7px 11px; border-radius: 10px; font-weight: 800; font-size: 14px; white-space: nowrap; }
+  @media (prefers-color-scheme: dark) { .toast button { color: #da1018; } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="tabs" id="tabs" hidden>
+  <div class="in">
+    <button data-tab="inicio"><span class="pill" id="tIcoInicio"></span>Clientes</button>
+    <button data-tab="resumen"><span class="pill" id="tIcoResumen"></span>Resumen</button>
+    <button data-tab="ajustes"><span class="pill" id="tIcoAjustes"></span>Ajustes</button>
+  </div>
+</nav>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
+<div class="toast" id="toast" role="status"><span class="msg" id="toastMsg"></span><span id="toastBtns"></span></div>
+<input type="file" id="fileIn" accept="application/json,.json" hidden>
+
+<script>
+(() => {
+  'use strict';
+  const KEY = 'fiadito.v1';
+  const DIA = 86400000;
+  const ATRASO_DIAS = 15;
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+  // ================= Datos =================
+  function vacio() { return { tienda: { nombre: '' }, clientes: [], ultimoRespaldo: 0, empezado: false }; }
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        d.tienda = d.tienda || { nombre: '' };
+        d.clientes = Array.isArray(d.clientes) ? d.clientes : [];
+        if (d.empezado === undefined) d.empezado = true; // datos de la versión 1
+        d.ultimoRespaldo = d.ultimoRespaldo || 0;
+        return d;
+      }
+    } catch (e) { /* datos dañados o almacenamiento bloqueado */ }
+    return vacio();
+  }
+  let db = load();
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); }
+    catch (e) { toast('No se pudo guardar. Haz un respaldo.'); }
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const saldo = (c) => r2(c.movs.reduce((s, m) => s + (m.tipo === 'fiado' ? m.monto : -m.monto), 0));
+  const money = (n, dec = true) => '$' + Math.abs(n).toLocaleString('es-MX', { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 });
+  const moneyShort = (n) => Math.abs(n) >= 1000 ? '$' + (Math.abs(n) / 1000).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + 'k' : money(n, false);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const initials = (n) => n.trim().split(/\s+/).filter((w) => !/^(don|doña|dona|sr|sra|la|el)\.?$/i.test(w)).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || n.trim().slice(0, 1).toUpperCase() || '?';
+  const hue = (id) => { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  const avatar = (c, cls = '') => `<div class="avatar ${cls}" style="--h:${hue(c.id)}">${esc(initials(c.nombre))}</div>`;
+  const inicioDia = (t = Date.now()) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const inicioMes = () => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const fechaCorta = (ts) => new Date(ts).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+  const hora = (ts) => new Date(ts).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' });
+  function diaLabel(ts) {
+    const d0 = inicioDia(ts), hoy = inicioDia();
+    if (d0 === hoy) return 'Hoy';
+    if (d0 === hoy - DIA) return 'Ayer';
+    const s = new Date(ts).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function hace(ts) {
+    const d = Math.round((inicioDia() - inicioDia(ts)) / DIA);
+    if (d <= 0) return 'hoy';
+    if (d === 1) return 'ayer';
+    if (d < 30) return 'hace ' + d + ' días';
+    const m = Math.floor(d / 30);
+    return 'hace ' + m + (m === 1 ? ' mes' : ' meses');
+  }
+  const findCliente = (id) => db.clientes.find((c) => c.id === id);
+  const vibrar = (ms = 8) => {
+    try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(ms); } catch (e) {}
+  };
+
+  // Desde cuándo debe: el último momento en que su saldo estaba en cero (o su último abono, lo que sea más reciente)
+  function info(c) {
+    const s = saldo(c);
+    const debe = s > 0.004;
+    let ultPago = 0, desde = 0, run = 0;
+    for (const m of c.movs) {
+      const antes = run;
+      run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto));
+      if (m.tipo === 'pago') ultPago = m.fecha;
+      if (antes <= 0.004 && run > 0.004) desde = m.fecha;
+    }
+    const ref = Math.max(ultPago, desde);
+    const dias = debe && ref ? Math.round((inicioDia() - inicioDia(ref)) / DIA) : 0;
+    const atrasado = debe && dias >= ATRASO_DIAS;
+    const pasado = debe && c.limite > 0 && s > c.limite;
+    const ultimo = c.movs.length ? c.movs[c.movs.length - 1].fecha : c.creado;
+    return { s, debe, ultPago, dias, atrasado, pasado, ultimo };
+  }
+
+  // ================= Iconos =================
+  const sv = (p, w = 2) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const I = {
+    plus: sv('<path d="M12 5v14M5 12h14"/>', 2.4),
+    back: sv('<path d="M15 18l-6-6 6-6"/>', 2.2),
+    edit: sv('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+    search: sv('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+    up: sv('<path d="M12 19V5M5 12l7-7 7 7"/>', 2.4),
+    down: sv('<path d="M12 5v14M19 12l-7 7-7-7"/>', 2.4),
+    users: sv('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'),
+    chart: sv('<path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/>'),
+    gear: sv('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+    store: sv('<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v8h14v-8"/><path d="M10 21v-5h4v5"/>'),
+    book: sv('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/><path d="M9 8h7M9 12h5"/>', 1.8),
+    phone: sv('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.8 2z"/>'),
+    shield: sv('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>'),
+    alert: sv('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'),
+    download: sv('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/>'),
+    check: sv('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 3),
+    bksp: sv('<path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="M18 9l-6 6M12 9l6 6"/>'),
+    spark: sv('<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/>'),
+    trash: sv('<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>'),
+    install: sv('<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>'),
+    wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.4.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s1 2.6 1.1 2.7c.1.2 1.9 2.9 4.6 4.1 1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.5-.3z"/></svg>',
+  };
+  $('#tIcoInicio').innerHTML = I.users; $('#tIcoResumen').innerHTML = I.chart; $('#tIcoAjustes').innerHTML = I.gear;
+
+  // ================= Navegación =================
+  let view = { name: 'inicio' };
+  let lastTab = 'inicio';
+  let query = '';
+  let filtro = 'todos';
+  let ignorarPop = false;
+  let rango = 7;
+  let diaSel = -1;
+  const enviados = new Set();
+
+  function go(v, anim = '') {
+    view = v;
+    if (['inicio', 'resumen', 'ajustes'].includes(v.name)) lastTab = v.name;
+    render(anim);
+    window.scrollTo(0, 0);
+  }
+  function pushNav(v) { history.pushState({}, ''); go(v, 'slide'); }
+  window.addEventListener('popstate', () => {
+    if (ignorarPop) { ignorarPop = false; return; }
+    if (sheetOpen) { closeSheet(true); return; }
+    if (view.name === 'cliente') go({ name: lastTab });
+  });
+
+  // ================= Render =================
+  const prevNums = {};
+  function render(anim = '') {
+    const app = $('#app');
+    const tabs = $('#tabs');
+    if (!db.empezado) {
+      tabs.hidden = true;
+      app.innerHTML = `<div class="view">${vistaBienvenida()}</div>`;
+      return;
+    }
+    let html = '';
+    if (view.name === 'cliente') {
+      const c = findCliente(view.id);
+      if (!c) { view = { name: lastTab }; return render(); }
+      html = vistaCliente(c);
+    } else if (view.name === 'resumen') html = vistaResumen();
+    else if (view.name === 'ajustes') html = vistaAjustes();
+    else html = vistaInicio();
+    app.innerHTML = `<div class="view ${anim}">${html}</div>`;
+    tabs.hidden = view.name === 'cliente';
+    $$('#tabs [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === view.name));
+    const q = $('#q');
+    if (q) q.addEventListener('input', (e) => { query = e.target.value; const l = $('#lista'); if (l) l.innerHTML = filasLista(); });
+    contar();
+  }
+
+  // Animación de los números grandes (cuentan hacia el valor nuevo)
+  function contar() {
+    $$('[data-count]').forEach((el) => {
+      const key = el.dataset.key, to = Number(el.dataset.count);
+      const from = prevNums[key] !== undefined ? prevNums[key] : 0;
+      prevNums[key] = to;
+      if (Math.abs(to - from) < 0.005 || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = money(to); return; }
+      const t0 = performance.now(), dur = 600;
+      const step = (t) => {
+        const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+        el.textContent = money(from + (to - from) * e);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  // ---------- Bienvenida ----------
+  const LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="5" width="40" height="54" rx="9" fill="#da1018"/><rect x="12" y="5" width="11" height="54" rx="5" fill="#b50c13"/><text x="38" y="44" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="30" fill="#fff">$</text></svg>';
+  function vistaBienvenida() {
+    return `<section class="splash">
+      <div class="splash-in">
+        <div class="logo-big">${LOGO}</div>
+        <h1 class="wordmark">Fiadito</h1>
+        <p class="tag">Cobra lo que fías.</p>
+      </div>
+      <div class="splash-actions">
+        <button class="btn white big" data-act="empezar">Empezar</button>
+        <button class="link" data-act="demo">Ver un ejemplo</button>
+      </div>
+    </section>`;
+  }
+  function sheetTienda() {
+    openSheet(`<h2>¿Cómo se llama tu tienda?</h2>
+      <form id="fTienda" style="margin-top:12px">
+        <input class="inp" id="tNombre" maxlength="60" placeholder="Ej. Abarrotes Lupita" autocomplete="off" aria-label="Nombre de tu tienda">
+        <div class="stack"><button class="btn primary big" type="submit">Listo</button></div>
+      </form>`, '#tNombre');
+    $('#fTienda').addEventListener('submit', (e) => {
+      e.preventDefault();
+      db.tienda.nombre = ($('#tNombre').value || '').trim();
+      db.empezado = true; save();
+      closeSheet(); go({ name: 'inicio' });
+    });
+  }
+
+  // ---------- Inicio ----------
+  function totales() {
+    const hoy = inicioDia(), mes = inicioMes();
+    let total = 0, deben = 0, fiadoHoy = 0, cobradoHoy = 0, fiadoMes = 0, cobradoMes = 0, atrasados = 0, nFiadoHoy = 0, nCobroHoy = 0;
+    for (const c of db.clientes) {
+      const inf = info(c);
+      if (inf.debe) { total += inf.s; deben++; }
+      if (inf.atrasado) atrasados++;
+      for (const m of c.movs) {
+        if (m.fecha >= hoy) { if (m.tipo === 'fiado') { fiadoHoy += m.monto; nFiadoHoy++; } else { cobradoHoy += m.monto; nCobroHoy++; } }
+        if (m.fecha >= mes) { if (m.tipo === 'fiado') fiadoMes += m.monto; else cobradoMes += m.monto; }
+      }
+    }
+    return { total: r2(total), deben, fiadoHoy, cobradoHoy, fiadoMes, cobradoMes, atrasados, nFiadoHoy, nCobroHoy };
+  }
+  function saludo() { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; }
+
+  function vistaInicio() {
+    const t = totales();
+    const n = db.clientes.length;
+    const sinRespaldo = n > 0 && Date.now() - (db.ultimoRespaldo || 0) > 7 * DIA;
+    const counts = contarFiltros();
+    return `
+      <header class="hero"><div class="wrap">
+        <div class="hero-top">
+          <div class="logo">${I.store}</div>
+          <div class="grow"><div class="hola">${saludo()}</div><div class="tienda">${esc(db.tienda.nombre || 'Mi tienda')}</div></div>
+        </div>
+        <div class="lbl">Te deben en total</div>
+        <div class="big num" data-count="${t.total}" data-key="total">${money(t.total)}</div>
+        <div class="sub">${t.deben ? `${t.deben} ${t.deben === 1 ? 'cliente te debe' : 'clientes te deben'}` : 'Nadie te debe. ¡Qué bien!'}${t.atrasados ? ` · ${t.atrasados} ${t.atrasados === 1 ? 'atrasado' : 'atrasados'}` : ''}</div>
+      </div></header>
+      <main class="wrap">
+        <div class="stats">
+          <div class="stat"><div class="k"><i style="background:var(--debe)"></i>Fiado hoy</div><div class="v num" data-count="${t.fiadoHoy}" data-key="fh">${money(t.fiadoHoy)}</div><div class="s">${t.nFiadoHoy} ${t.nFiadoHoy === 1 ? 'movimiento' : 'movimientos'}</div></div>
+          <div class="stat"><div class="k"><i style="background:var(--ok)"></i>Cobrado hoy</div><div class="v num" data-count="${t.cobradoHoy}" data-key="ch">${money(t.cobradoHoy)}</div><div class="s">${t.nCobroHoy} ${t.nCobroHoy === 1 ? 'abono' : 'abonos'}</div></div>
+        </div>
+        ${sinRespaldo ? `<button class="banner" data-act="respaldar">${I.shield}<span class="grow">Haz tu respaldo de la semana para no perder tu libreta</span><b>Hacer</b></button>` : ''}
+        ${instalable && !instalado ? `<button class="banner brand" data-act="instalar">${I.install}<span class="grow">Instala Fiadito en tu pantalla de inicio</span><b>Instalar</b></button>` : ''}
+        ${n ? `
+          <div class="tools">
+            <div class="search">${I.search}<input id="q" type="search" placeholder="Buscar cliente" value="${esc(query)}" autocomplete="off" aria-label="Buscar cliente"></div>
+            <div class="filters" role="tablist">
+              ${[['todos', 'Todos'], ['deben', 'Deben'], ['atrasados', 'Atrasados'], ['corriente', 'Al corriente']].map(([k, l]) =>
+                `<button class="fchip ${filtro === k ? 'on' : ''}" data-act="filtro" data-f="${k}" role="tab" aria-selected="${filtro === k}">${l}<span class="c">${counts[k]}</span></button>`).join('')}
+            </div>
+          </div>
+          <div class="list stagger" id="lista">${filasLista()}</div>` : `
+          <div class="empty">
+            <div class="ill">${I.book}</div>
+            <h2>Tu libreta está vacía</h2>
+            <p>Agrega a tu primer cliente con el botón de abajo.</p>
+          </div>`}
+      </main>
+      ${n ? `<button class="fab" data-act="elegir">${I.plus} Fiar</button>` : `<button class="fab" data-act="nuevo-cliente">${I.plus} Cliente</button>`}`;
+  }
+  function contarFiltros() {
+    const r = { todos: db.clientes.length, deben: 0, atrasados: 0, corriente: 0 };
+    for (const c of db.clientes) { const i = info(c); if (i.debe) r.deben++; else r.corriente++; if (i.atrasado) r.atrasados++; }
+    return r;
+  }
+  function filasLista() {
+    const q = query.trim().toLowerCase();
+    const items = db.clientes
+      .map((c) => ({ c, i: info(c) }))
+      .filter(({ c, i }) => (!q || c.nombre.toLowerCase().includes(q) || (c.tel || '').includes(q))
+        && (filtro === 'todos' || (filtro === 'deben' && i.debe) || (filtro === 'atrasados' && i.atrasado) || (filtro === 'corriente' && !i.debe)))
+      .sort((a, b) => (b.i.debe - a.i.debe) || (b.i.atrasado - a.i.atrasado) || (b.i.s - a.i.s) || (b.i.ultimo - a.i.ultimo));
+    if (!items.length) {
+      const msg = q ? `No hay clientes con "${esc(query)}".` : filtro === 'atrasados' ? '¡Nadie está atrasado! 🎉' : filtro === 'deben' ? 'Nadie te debe ahorita.' : 'No hay clientes aquí.';
+      return `<div class="empty" style="padding:28px 16px"><p>${msg}</p></div>`;
+    }
+    return items.map(({ c, i }) => {
+      let meta;
+      if (i.debe) meta = i.ultPago ? 'Último abono ' + hace(i.ultPago) : 'Debe desde ' + hace(c.movs.find((m) => m.tipo === 'fiado')?.fecha || c.creado);
+      else meta = 'Movimiento ' + hace(i.ultimo);
+      const badges = (i.atrasado ? `<span class="badge late">${i.dias} días</span>` : '') + (i.pasado ? '<span class="badge limit">Límite</span>' : '');
+      return `<div class="row">
+        <button class="main" data-act="abrir" data-id="${c.id}">
+          ${avatar(c)}
+          <div class="info"><div class="name">${esc(c.nombre)}</div><div class="meta">${badges}<span>${meta}</span></div></div>
+          <div class="amt">${i.debe ? `<div class="v debe num">${money(i.s)}</div>` : `<div class="v ok">${i.s < -0.004 ? 'A favor' : 'Al corriente'}</div>`}</div>
+        </button>
+        <button class="quick" data-act="fiar-rapido" data-id="${c.id}" aria-label="Fiar a ${esc(c.nombre)}">${I.plus}</button>
+      </div>`;
+    }).join('');
+  }
+
+  // ---------- Cliente ----------
+  function vistaCliente(c) {
+    const i = info(c);
+    const lim = c.limite > 0 ? c.limite : 0;
+    const pct = lim ? Math.min(100, (Math.max(0, i.s) / lim) * 100) : 0;
+    // saldo después de cada movimiento
+    let run = 0;
+    const conSaldo = c.movs.map((m) => { run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto)); return { m, after: run }; }).reverse();
+    const grupos = [];
+    for (const x of conSaldo) {
+      const lbl = diaLabel(x.m.fecha);
+      if (!grupos.length || grupos[grupos.length - 1].lbl !== lbl) grupos.push({ lbl, items: [] });
+      grupos[grupos.length - 1].items.push(x);
+    }
+    return `
+      <div class="wrap">
+        <div class="bar">
+          <button class="icon-btn" data-act="volver" aria-label="Volver">${I.back}</button>
+          <h1></h1>
+          ${c.tel ? `<a class="icon-btn" href="tel:${esc(c.tel)}" aria-label="Llamar">${I.phone}</a>` : ''}
+          <button class="icon-btn" data-act="editar-cliente" data-id="${c.id}" aria-label="Editar cliente">${I.edit}</button>
+        </div>
+        <div class="profile">
+          ${avatar(c, 'lg')}
+          <h2>${esc(c.nombre)}</h2>
+          <div class="tel">${c.tel ? esc(formatTel(c.tel)) : 'Sin WhatsApp'}${i.atrasado ? ` · <span style="color:var(--warn);font-weight:700">${i.dias} días sin abonar</span>` : ''}</div>
+        </div>
+        <div class="balance">
+          <div class="lbl">${i.debe ? 'Te debe' : i.s < -0.004 ? 'Tiene a su favor' : 'Está al corriente'}</div>
+          <div class="big num ${i.debe ? 'debe' : 'ok'}" data-count="${Math.abs(i.s)}" data-key="c-${c.id}">${money(i.s)}</div>
+          ${lim ? `<div class="limitbar">
+            <div class="track"><div class="fill ${pct >= 100 ? 'over' : pct >= 75 ? 'mid' : ''}" style="width:${pct}%"></div></div>
+            <div class="txt"><span>${i.s > lim ? 'Se pasó de su límite' : 'Le quedan ' + money(Math.max(0, lim - i.s))}</span><span>Límite ${money(lim, false)}</span></div>
+          </div>` : ''}
+          <div class="actions">
+            <button class="btn fiar" data-act="fiar" data-id="${c.id}">${I.up} Fiar</button>
+            <button class="btn pagar" data-act="pagar" data-id="${c.id}">${I.down} Abonó</button>
+            <button class="btn wa" data-act="whatsapp" data-id="${c.id}">${I.wa} ${i.debe ? 'Cobrar por WhatsApp' : 'Mandar estado de cuenta'}</button>
+          </div>
+        </div>
+        ${grupos.length ? grupos.map((g) => `
+          <h3 class="sec">${g.lbl}</h3>
+          <div class="group">${g.items.map(({ m, after }) => `
+            <button class="mov ${m.tipo}" data-act="ver-mov" data-id="${c.id}" data-mov="${m.id}">
+              <div class="ic">${m.tipo === 'fiado' ? I.up : I.down}</div>
+              <div class="info"><div class="t">${m.tipo === 'fiado' ? 'Fiado' : 'Abono'} <span style="color:var(--muted);font-weight:500;font-size:13px">· ${hora(m.fecha)}</span></div>
+              ${m.nota ? `<div class="n">${esc(m.nota)}</div>` : ''}</div>
+              <div class="r"><div class="v num">${m.tipo === 'fiado' ? '+' : '−'}${money(m.monto)}</div><div class="s num">Quedó ${after < 0 ? '-' : ''}${money(after)}</div></div>
+            </button>`).join('')}</div>`).join('') : `<div class="card" style="text-align:center"><p>Sin movimientos todavía. Toca <b>Fiar</b> cuando se lleve algo sin pagar.</p></div>`}
+        <div style="height:24px"></div>
+      </div>`;
+  }
+  function formatTel(t) { const d = t.replace(/\D/g, ''); return d.length === 10 ? `${d.slice(0, 2)} ${d.slice(2, 6)} ${d.slice(6)}` : t; }
+
+  // ---------- Resumen ----------
+  function serieDias(n) {
+    const hoy = inicioDia();
+    const dias = [];
+    for (let k = n - 1; k >= 0; k--) dias.push({ t: hoy - k * DIA, f: 0, p: 0 });
+    const t0 = dias[0].t;
+    for (const c of db.clientes) for (const m of c.movs) {
+      if (m.fecha < t0) continue;
+      const idx = Math.min(n - 1, Math.floor((inicioDia(m.fecha) - t0) / DIA));
+      if (idx < 0) continue;
+      if (m.tipo === 'fiado') dias[idx].f += m.monto; else dias[idx].p += m.monto;
+    }
+    return dias;
+  }
+  function grafica(n) {
+    const d = serieDias(n);
+    const W = 340, H = 170, padL = 2, padR = 40, padB = 22, padT = 8;
+    const max = Math.max(50, ...d.map((x) => Math.max(x.f, x.p)));
+    const nice = Math.ceil(max / 50) * 50;
+    const gw = (W - padL - padR) / n;
+    const bw = Math.max(3, Math.min(14, gw * 0.32));
+    const y = (v) => padT + (H - padB - padT) * (1 - v / nice);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Fiado y cobrado por día">`;
+    for (const g of [0.5, 1]) s += `<line x1="0" x2="${W - padR + 4}" y1="${y(nice * g)}" y2="${y(nice * g)}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${W}" y="${y(nice * g) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${moneyShort(nice * g)}</text>`;
+    s += `<line x1="0" x2="${W - padR + 4}" y1="${H - padB}" y2="${H - padB}" stroke="var(--line)"/><text x="${W}" y="${H - padB + 4}" text-anchor="end" font-size="11" fill="var(--muted)">$0</text>`;
+    d.forEach((x, k) => {
+      const cx = padL + gw * k + gw / 2;
+      const sel = k === diaSel;
+      const op = diaSel >= 0 && !sel ? 0.35 : 1;
+      if (sel) s += `<rect x="${cx - gw / 2 + 1}" y="${padT - 4}" width="${gw - 2}" height="${H - padB - padT + 4}" rx="8" fill="var(--card2)"/>`;
+      const hf = H - padB - y(x.f), hp = H - padB - y(x.p);
+      if (x.f > 0) s += `<rect x="${cx - bw - 1}" y="${y(x.f)}" width="${bw}" height="${Math.max(2, hf)}" rx="${Math.min(4, bw / 2)}" fill="var(--debe)" opacity="${op}"/>`;
+      if (x.p > 0) s += `<rect x="${cx + 1}" y="${y(x.p)}" width="${bw}" height="${Math.max(2, hp)}" rx="${Math.min(4, bw / 2)}" fill="var(--ok)" opacity="${op}"/>`;
+      const showLbl = n <= 7 || k % 5 === 4 || k === n - 1;
+      if (showLbl) {
+        const lbl = n <= 7 ? new Date(x.t).toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', '') : new Date(x.t).getDate();
+        s += `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" font-weight="${sel ? 800 : 500}" fill="${sel ? 'var(--ink)' : 'var(--muted)'}">${lbl}</text>`;
+      }
+      s += `<rect class="day" data-act="dia" data-k="${k}" x="${cx - gw / 2}" y="0" width="${gw}" height="${H}" fill="transparent"/>`;
+    });
+    s += '</svg>';
+    let det = 'Toca un día para ver el detalle';
+    if (diaSel >= 0 && d[diaSel]) {
+      const x = d[diaSel];
+      det = `<b>${diaLabel(x.t)}</b>: fiaste <b style="color:var(--debe)">${money(x.f)}</b> y cobraste <b style="color:var(--ok)">${money(x.p)}</b>`;
+    }
+    const totF = d.reduce((a, x) => a + x.f, 0), totP = d.reduce((a, x) => a + x.p, 0);
+    return { svg: s, det, totF, totP };
+  }
+  function vistaResumen() {
+    const t = totales();
+    const g = grafica(rango);
+    const deudores = db.clientes.map((c) => ({ c, i: info(c) })).filter((x) => x.i.debe).sort((a, b) => b.i.s - a.i.s);
+    const top = deudores.slice(0, 5);
+    const maxS = top.length ? top[0].i.s : 1;
+    const atras = deudores.filter((x) => x.i.atrasado).sort((a, b) => b.i.dias - a.i.dias);
+    const balance = g.totP - g.totF;
+    return `
+      <div class="wrap">
+        <div class="page-title"><h1>Resumen</h1><p>${new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
+        <div class="grid3">
+          <div class="mini"><div class="k">Te deben</div><div class="v num" style="color:var(--debe)">${moneyShort(t.total)}</div></div>
+          <div class="mini"><div class="k">Fiado mes</div><div class="v num">${moneyShort(t.fiadoMes)}</div></div>
+          <div class="mini"><div class="k">Cobrado mes</div><div class="v num" style="color:var(--ok)">${moneyShort(t.cobradoMes)}</div></div>
+        </div>
+        <div class="card">
+          <div class="chart-head">
+            <h4>Fiado vs. cobrado</h4>
+            <div class="seg"><button class="${rango === 7 ? 'on' : ''}" data-act="rango" data-r="7">7 días</button><button class="${rango === 30 ? 'on' : ''}" data-act="rango" data-r="30">30 días</button></div>
+          </div>
+          <div class="legend" style="margin-top:8px"><span><i style="background:var(--debe)"></i>Fiaste ${money(g.totF, false)}</span><span><i style="background:var(--ok)"></i>Cobraste ${money(g.totP, false)}</span></div>
+          <div class="chart">${g.svg}</div>
+          <div class="chart-detail">${g.det}</div>
+          <p style="text-align:center;margin-top:8px">${g.totF + g.totP === 0 ? 'Aún no hay movimientos en estos días.' : balance >= 0 ? `Vas bien: cobraste <b style="color:var(--ok)">${money(balance, false)}</b> más de lo que fiaste.` : `Ojo: fiaste <b style="color:var(--debe)">${money(-balance, false)}</b> más de lo que cobraste.`}</p>
+        </div>
+        ${top.length ? `<div class="card">
+          <h4>Quién te debe más</h4>
+          <div class="rank">${top.map(({ c, i }) => `
+            <button class="it" data-act="abrir" data-id="${c.id}"><span class="nm">${esc(c.nombre)}</span><span class="v num">${money(i.s)}</span><div class="tr"><div style="width:${Math.max(4, (i.s / maxS) * 100)}%"></div></div></button>`).join('')}
+          </div>
+        </div>` : ''}
+        <div class="card">
+          <h4>Cobrar a los atrasados</h4>
+          <p>Clientes con más de ${ATRASO_DIAS} días sin abonar. Mándales su cuenta uno por uno.</p>
+          ${atras.length ? `<div style="margin-top:8px">${atras.map(({ c, i }) => `
+            <div class="cobro">${avatar(c)}<div class="info"><div class="nm">${esc(c.nombre)}</div><div class="s">${money(i.s)} · ${i.dias} días</div></div>
+            <button class="wa-mini ${enviados.has(c.id) ? 'sent' : ''}" data-act="cobrar-lista" data-id="${c.id}">${enviados.has(c.id) ? I.check + ' Enviado' : I.wa + ' Cobrar'}</button></div>`).join('')}</div>`
+            : `<p style="margin-top:10px;color:var(--ok);font-weight:700">Nadie está atrasado. ¡Excelente!</p>`}
+        </div>
+        <div style="height:12px"></div>
+      </div>`;
+  }
+
+  // ---------- Ajustes ----------
+  function vistaAjustes() {
+    const nMovs = db.clientes.reduce((s, c) => s + c.movs.length, 0);
+    return `
+      <div class="wrap">
+        <div class="page-title"><h1>Ajustes</h1></div>
+        <div class="card">
+          <div class="setrow"><div class="ico">${I.store}</div><div class="grow"><h4>Tu tienda</h4></div></div>
+          <label class="f" for="tiendaNombre">Nombre</label>
+          <input class="inp" id="tiendaNombre" maxlength="60" placeholder="Ej. Abarrotes Lupita" value="${esc(db.tienda.nombre)}">
+          <div class="hint">Aparece arriba y en los mensajes de WhatsApp.</div>
+          <div class="stack"><button class="btn primary" data-act="guardar-tienda">Guardar</button></div>
+        </div>
+        <div class="card">
+          <div class="setrow"><div class="ico">${I.shield}</div><div class="grow"><h4>Respaldo</h4><p style="margin:2px 0 0">${db.ultimoRespaldo ? 'Último: ' + hace(db.ultimoRespaldo) : 'Nunca has hecho uno'}</p></div></div>
+          <p>Tu libreta se guarda solo en este celular. Haz un respaldo cada semana y mándatelo a tu WhatsApp o correo. ${db.clientes.length} clientes · ${nMovs} movimientos.</p>
+          <div class="stack">
+            <button class="btn primary" data-act="respaldar">${I.download} Hacer respaldo</button>
+            <button class="btn ghost" data-act="restaurar">Restaurar desde respaldo</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="setrow"><div class="ico">${I.install}</div><div class="grow"><h4>Instalar en tu celular</h4></div></div>
+          ${instalable && !instalado ? `<div class="stack"><button class="btn primary" data-act="instalar">Instalar Fiadito</button></div>` :
+            `<p>${instalado ? 'Ya está instalada. ¡Listo!' : 'En Chrome toca el menú (⋮) y elige "Instalar app". En iPhone, en Safari toca Compartir y luego "Agregar a inicio".'}</p>`}
+        </div>
+        <div class="card">
+          <div class="setrow"><div class="ico" style="background:var(--debe-soft);color:var(--debe)">${I.trash}</div><div class="grow"><h4>Empezar de cero</h4></div></div>
+          <p>Borra todos los clientes y movimientos de este celular. Útil después de ver el ejemplo.</p>
+          <div class="stack"><button class="btn danger" data-act="borrar-todo">Borrar todo</button></div>
+        </div>
+        <p style="text-align:center;color:var(--muted);font-size:13px;margin:18px 0">Fiadito · versión 2</p>
+      </div>`;
+  }
+
+  // ================= Hoja inferior =================
+  let sheetOpen = false;
+  let onSheetClose = null;
+  function openSheet(html, focusSel) {
+    $('#sheetBody').innerHTML = html;
+    $('#sheet').classList.add('open');
+    $('#sheetBg').classList.add('open');
+    if (!sheetOpen) history.pushState({ sheet: 1 }, '');
+    sheetOpen = true;
+    if (focusSel) setTimeout(() => { const el = $(focusSel); if (el) el.focus(); }, 280);
+  }
+  function closeSheet(fromPop) {
+    if (!sheetOpen) return;
+    sheetOpen = false;
+    $('#sheet').classList.remove('open');
+    $('#sheetBg').classList.remove('open');
+    if (onSheetClose) { const f = onSheetClose; onSheetClose = null; f(); }
+    if (!fromPop) { ignorarPop = true; history.back(); }
+  }
+  $('#sheetBg').addEventListener('click', () => closeSheet());
+
+  // ---------- Cliente nuevo / editar ----------
+  function sheetCliente(c, despues) {
+    const edit = !!c;
+    openSheet(`
+      <h2>${edit ? 'Editar cliente' : 'Nuevo cliente'}</h2>
+      <form id="fCliente">
+        <label class="f" for="cNombre">Nombre</label>
+        <input class="inp" id="cNombre" required maxlength="60" autocomplete="off" placeholder="Ej. Doña Mary" value="${edit ? esc(c.nombre) : ''}">
+        <label class="f" for="cTel">WhatsApp <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
+        <input class="inp" id="cTel" type="tel" inputmode="tel" maxlength="20" placeholder="10 dígitos, ej. 55 1234 5678" value="${edit ? esc(c.tel || '') : ''}">
+        <label class="f" for="cLim">Límite de fiado <span style="font-weight:500;color:var(--muted)">(opcional)</span></label>
+        <input class="inp" id="cLim" inputmode="decimal" maxlength="9" placeholder="Ej. 500" value="${edit && c.limite ? c.limite : ''}">
+        <div class="hint">Te avisamos cuando alguien se pase de lo que le fías.</div>
+        <div class="stack">
+          <button class="btn primary" type="submit">${edit ? 'Guardar cambios' : 'Agregar cliente'}</button>
+          ${edit ? `<button class="btn danger" type="button" data-act="borrar-cliente" data-id="${c.id}">Borrar cliente</button>` : ''}
+        </div>
+      </form>`, '#cNombre');
+    $('#fCliente').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nombre = $('#cNombre').value.trim().replace(/\s+/g, ' ');
+      const tel = $('#cTel').value.replace(/\D/g, '');
+      const limite = parseMonto($('#cLim').value);
+      if (!nombre) return;
+      if (edit) { c.nombre = nombre; c.tel = tel; c.limite = limite; save(); closeSheet(); render(); toast('Cliente actualizado'); return; }
+      const nuevo = { id: uid(), nombre, tel, limite, creado: Date.now(), movs: [] };
+      db.clientes.push(nuevo); save(); vibrar(12);
+      if (despues) { despues(nuevo); return; }
+      closeSheet(true); // la entrada de historial de la hoja pasa a ser la del cliente
+      go({ name: 'cliente', id: nuevo.id }, 'slide');
+      toast('Cliente agregado');
+    });
+  }
+  function parseMonto(v) { const n = parseFloat(String(v).replace(/[$,\s]/g, '')); return isFinite(n) && n > 0 ? r2(n) : 0; }
+
+  // ---------- Teclado para fiar / abonar ----------
+  const PRODUCTOS = ['Refresco', 'Pan', 'Leche', 'Huevo', 'Tortillas', 'Botana', 'Cerveza', 'Cigarros', 'Jabón', 'Papel', 'Aceite', 'Croquetas', 'Recarga'];
+  let pad = null;
+  function sheetMovimiento(c, tipo) {
+    pad = { c, tipo, expr: '', notas: new Set() };
+    openSheet('', null);
+    pintarPad();
+  }
+  function evalExpr(expr) {
+    return r2(expr.split('+').reduce((s, p) => s + (parseFloat(p) || 0), 0));
+  }
+  function pintarPad() {
+    if (!pad) return;
+    const { c, tipo, expr } = pad;
+    const fiar = tipo === 'fiado';
+    const total = evalExpr(expr);
+    const s = saldo(c);
+    const despues = r2(fiar ? s + total : s - total);
+    let after = '';
+    let warn = false;
+    if (total > 0) {
+      after = despues > 0.004 ? `Quedará debiendo ${money(despues)}` : despues < -0.004 ? `Quedará ${money(despues)} a su favor` : 'Quedará al corriente 🎉';
+      if (fiar && c.limite > 0 && despues > c.limite) { after = `Se pasa de su límite de ${money(c.limite, false)} (quedaría en ${money(despues)})`; warn = true; }
+    } else after = s > 0.004 ? `Ahorita debe ${money(s)}` : 'Ahorita no debe nada';
+    const exprTxt = expr.includes('+') ? expr.replace(/\+/g, ' + ') : '';
+    const money0 = fiar ? [10, 20, 50, 100] : [];
+    const html = `
+      <div class="sh-head">${avatar(c)}<div class="grow"><h2 style="margin:0;font-size:18px">${esc(c.nombre)}</h2><div class="sub">${s > 0.004 ? 'Debe ' + money(s) : 'Al corriente'}</div></div></div>
+      <div class="tipo-tabs">
+        <button class="fiado ${fiar ? 'on' : ''}" data-act="pad-tipo" data-t="fiado">Fiar</button>
+        <button class="pago ${!fiar ? 'on' : ''}" data-act="pad-tipo" data-t="pago">Abonó</button>
+      </div>
+      <div class="display ${tipo}" id="padDisplay">
+        <div class="expr num"><span dir="ltr">${esc(exprTxt)}</span></div>
+        <div class="val num">${money(total)}</div>
+      </div>
+      <div class="after ${warn ? 'warn' : ''}">${after}</div>
+      <div class="chips">
+        ${fiar ? PRODUCTOS.map((p) => `<button class="chip ${pad.notas.has(p) ? 'on' : ''}" data-act="pad-nota" data-p="${p}">${p}</button>`).join('')
+          : (s > 0.004 ? `<button class="chip money" data-act="pad-set" data-v="${s}">Pagó todo (${money(s)})</button>` : '') + [50, 100, 200, 500].map((v) => `<button class="chip money" data-act="pad-add" data-v="${v}">+$${v}</button>`).join('')}
+      </div>
+      ${fiar ? `<div class="chips" style="padding-top:2px">${money0.map((v) => `<button class="chip money" data-act="pad-add" data-v="${v}">+$${v}</button>`).join('')}</div>` : ''}
+      <input class="inp note-inp" id="padNota" maxlength="80" autocomplete="off" placeholder="${fiar ? 'Otra cosa que se llevó (opcional)' : 'Nota (opcional)'}" value="${esc(pad.notaLibre || '')}">
+      <div class="pad">
+        ${['7', '8', '9'].map(k).join('')}<button class="key" data-act="pad-key" data-k="del" aria-label="Borrar">${I.bksp}</button>
+        ${['4', '5', '6'].map(k).join('')}<button class="key op" data-act="pad-key" data-k="+" aria-label="Sumar">+</button>
+        ${['1', '2', '3'].map(k).join('')}<button class="key ok ${tipo}" data-act="pad-ok" ${total > 0 ? '' : 'disabled'}>${I.check}${fiar ? 'Apuntar' : 'Registrar'}</button>
+        ${k('00')}${k('0')}${k('.')}
+      </div>`;
+    function k(x) { return `<button class="key" data-act="pad-key" data-k="${x}">${x}</button>`; }
+    $('#sheetBody').innerHTML = html;
+    const ni = $('#padNota');
+    if (ni) ni.addEventListener('input', (e) => { pad.notaLibre = e.target.value; });
+  }
+  function padKey(kk) {
+    if (!pad) return;
+    let e = pad.expr;
+    const last = e.split('+').pop();
+    if (kk === 'del') e = e.slice(0, -1);
+    else if (kk === '+') { if (e && !e.endsWith('+') && !e.endsWith('.')) e += '+'; }
+    else if (kk === '.') { if (!last.includes('.')) e += last === '' ? '0.' : '.'; }
+    else {
+      if (last.includes('.') && last.split('.')[1].length + kk.length > 2) { shakePad(); return; }
+      if (last.replace('.', '').length >= 6) { shakePad(); return; }
+      if (last === '0' && kk !== '.') e = e.slice(0, -1);
+      e += kk;
+      if (/^0+$/.test(e.split('+').pop()) && e.split('+').pop().length > 1) e = e.replace(/0+$/, '0');
+    }
+    pad.expr = e; vibrar(6); pintarPad();
+  }
+  function shakePad() { const d = $('#padDisplay'); if (d) { d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake'); } vibrar(30); }
+  function padGuardar() {
+    if (!pad) return;
+    const total = evalExpr(pad.expr);
+    if (!(total > 0)) { shakePad(); return; }
+    const { c, tipo } = pad;
+    const partes = [...pad.notas];
+    if (pad.notaLibre && pad.notaLibre.trim()) partes.push(pad.notaLibre.trim());
+    const mov = { id: uid(), tipo, monto: total, nota: partes.join(', '), fecha: Date.now() };
+    c.movs.push(mov);
+    save(); vibrar([10, 40, 10]);
+    const s = saldo(c);
+    const fiar = tipo === 'fiado';
+    pad = null;
+    $('#sheetBody').innerHTML = `<div class="done ${tipo}"><div class="ck">${I.check}</div>
+      <h2>${fiar ? 'Fiado apuntado' : 'Abono registrado'}</h2>
+      <p>${money(total)} · ${s > 0.004 ? 'Debe ' + money(s) : s < -0.004 ? 'A favor ' + money(s) : 'Quedó al corriente'}</p></div>`;
+    setTimeout(() => {
+      if (!sheetOpen) return;
+      closeSheet(); render();
+      const btns = [{ t: 'Deshacer', f: () => { c.movs = c.movs.filter((m) => m.id !== mov.id); save(); render(); toast('Listo, se deshizo'); } }];
+      if (!fiar && c.tel) btns.unshift({ t: 'Recibo', f: () => abrirWa(c, mensajeRecibo(c, mov)) });
+      toast(fiar ? `Le fiaste ${money(total)} a ${primerNombre(c)}` : `${primerNombre(c)} abonó ${money(total)}`, btns, 5000);
+    }, 900);
+  }
+  const primerNombre = (c) => { const p = c.nombre.split(' '); return /^(don|doña|dona)$/i.test(p[0]) && p[1] ? p[0] + ' ' + p[1] : p[0]; };
+
+  // ---------- Elegir cliente (desde el botón rápido) ----------
+  function sheetElegir() {
+    const lista = db.clientes.map((c) => ({ c, s: saldo(c) })).sort((a, b) => b.s - a.s);
+    openSheet(`<h2>¿A quién le fías?</h2>
+      <div class="search" style="margin-top:8px">${I.search}<input id="pq" type="search" placeholder="Buscar" autocomplete="off"></div>
+      <div class="pick" id="pick"></div>
+      <div class="stack"><button class="btn ghost" data-act="nuevo-desde-pick">${I.plus} Cliente nuevo</button></div>`);
+    const pintar = (q) => {
+      q = (q || '').toLowerCase();
+      $('#pick').innerHTML = lista.filter((x) => x.c.nombre.toLowerCase().includes(q)).map(({ c, s }) =>
+        `<button data-act="pick" data-id="${c.id}">${avatar(c)}<span class="grow">${esc(c.nombre)}</span>${s > 0.004 ? `<span class="s num">${money(s)}</span>` : ''}</button>`).join('') || '<p style="color:var(--muted);text-align:center">Nadie con ese nombre.</p>';
+    };
+    pintar('');
+    $('#pq').addEventListener('input', (e) => pintar(e.target.value));
+  }
+
+  function sheetVerMov(c, m) {
+    openSheet(`
+      <div class="sh-head">${avatar(c)}<div class="grow"><h2 style="margin:0;font-size:18px">${m.tipo === 'fiado' ? 'Fiado' : 'Abono'} de ${money(m.monto)}</h2><div class="sub">${esc(c.nombre)} · ${fechaCorta(m.fecha)}, ${hora(m.fecha)}</div></div></div>
+      ${m.nota ? `<div class="card" style="margin-top:6px"><p style="margin:0">${esc(m.nota)}</p></div>` : ''}
+      <div class="stack">
+        ${m.tipo === 'pago' && c.tel ? `<button class="btn wa" data-act="recibo" data-id="${c.id}" data-mov="${m.id}">${I.wa} Mandar recibo</button>` : ''}
+        <button class="btn danger" data-act="borrar-mov" data-id="${c.id}" data-mov="${m.id}">${I.trash} Borrar este movimiento</button>
+        <button class="btn ghost" data-act="cerrar">Cerrar</button>
+      </div>`);
+  }
+
+  // ================= WhatsApp =================
+  function mensajeCuenta(c) {
+    const s = saldo(c);
+    const tienda = db.tienda.nombre || 'la tienda';
+    const L = [`Hola ${primerNombre(c)}, le saluda ${tienda} 👋`];
+    if (s > 0.004) {
+      L.push(`Le compartimos su cuenta: su saldo pendiente es de *${money(s)}*.`);
+      const ult = c.movs.slice(-6);
+      if (ult.length) {
+        L.push('', '🧾 Últimos movimientos:');
+        ult.forEach((m) => L.push(`${m.tipo === 'fiado' ? '▫️' : '✅'} ${fechaCorta(m.fecha)} · ${m.tipo === 'fiado' ? 'Fiado' : 'Abono'} ${m.tipo === 'fiado' ? '' : '−'}${money(m.monto)}${m.nota ? ' (' + m.nota + ')' : ''}`));
+      }
+      L.push('', 'Puede pasar a abonar cuando guste. ¡Gracias por su preferencia! 🙏');
+    } else {
+      L.push('Su cuenta está *al corriente*. ¡Muchas gracias por su pago! 🙌');
+    }
+    return L.join('\n');
+  }
+  function mensajeRecibo(c, mov) {
+    const tienda = db.tienda.nombre || 'la tienda';
+    let run = 0;
+    for (const m of c.movs) { run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto)); if (m.id === mov.id) break; }
+    return [`✅ *Recibo de abono* · ${tienda}`, '',
+      `Cliente: ${c.nombre}`, `Fecha: ${fechaCorta(mov.fecha)}, ${hora(mov.fecha)}`, `Abono: *${money(mov.monto)}*`,
+      run > 0.004 ? `Saldo pendiente: *${money(run)}*` : 'Saldo: *al corriente* 🎉', '', '¡Gracias por su pago!'].join('\n');
+  }
+  function telWa(tel) { const d = (tel || '').replace(/\D/g, ''); return d.length === 10 ? '52' + d : d; }
+  function abrirWa(c, texto) {
+    const t = telWa(c.tel);
+    const url = (t ? `https://wa.me/${t}` : 'https://wa.me/') + '?text=' + encodeURIComponent(texto);
+    window.open(url, '_blank', 'noopener');
+  }
+
+  // ================= Respaldo =================
+  function hoyISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  async function respaldar() {
+    const json = JSON.stringify({ app: 'fiadito', version: 2, fecha: Date.now(), datos: db });
+    const nombre = `fiadito-respaldo-${hoyISO()}.json`;
+    const blob = new Blob([json], { type: 'application/json' });
+    const listo = () => { db.ultimoRespaldo = Date.now(); save(); render(); };
+    try {
+      const file = new File([blob], nombre, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Respaldo Fiadito' });
+        listo(); toast('Respaldo listo'); return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    listo(); toast('Respaldo descargado');
+  }
+  function validarRespaldo(obj) {
+    const d = obj && obj.datos;
+    if (!d || !Array.isArray(d.clientes) || typeof d.tienda !== 'object' || !d.tienda) return null;
+    for (const c of d.clientes) {
+      if (typeof c.id !== 'string' || typeof c.nombre !== 'string' || !Array.isArray(c.movs)) return null;
+      for (const m of c.movs) if ((m.tipo !== 'fiado' && m.tipo !== 'pago') || typeof m.monto !== 'number' || !(m.monto > 0) || typeof m.fecha !== 'number') return null;
+    }
+    d.empezado = true;
+    return d;
+  }
+  $('#fileIn').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const d = validarRespaldo(JSON.parse(await f.text()));
+      if (!d) { toast('Ese archivo no es un respaldo de Fiadito'); return; }
+      if (!confirm(`Esto reemplaza lo que tienes ahora por el respaldo (${d.clientes.length} clientes). ¿Continuar?`)) return;
+      db = d; save(); render(); toast('Respaldo restaurado');
+    } catch (err) { toast('No se pudo leer el archivo'); }
+  });
+
+  // ================= Ejemplo =================
+  function cargarEjemplo() {
+    const ahora = Date.now();
+    const nombres = [['Doña Mary López', '5512345678', 600], ['Don Beto Ramírez', '5523456789', 0], ['Juanita Pérez', '5534567890', 400], ['Carlos (el del taller)', '', 0],
+      ['Lupe Hernández', '5545678901', 300], ['Señora Rosa', '5556789012', 0], ['Toño García', '5567890123', 500], ['Martha Ruiz', '', 0]];
+    const notas = ['Refresco, Pan', 'Leche, Huevo', 'Tortillas', 'Cerveza', 'Botana, Refresco', 'Aceite', 'Jabón, Papel', 'Cigarros', 'Croquetas', 'Recarga'];
+    let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    db = { tienda: { nombre: 'Abarrotes Lupita' }, clientes: [], ultimoRespaldo: ahora, empezado: true };
+    nombres.forEach(([nombre, tel, limite], idx) => {
+      const c = { id: uid() + idx, nombre, tel, limite, creado: ahora - 40 * DIA, movs: [] };
+      const perfil = idx % 4; // 0 paga bien, 1 atrasado, 2 al corriente, 3 mixto
+      for (let d = 34; d >= 0; d--) {
+        const t = ahora - d * DIA - Math.floor(rnd() * 8) * 3600000;
+        if (rnd() < (perfil === 1 && d < 20 ? 0.12 : 0.28)) c.movs.push({ id: uid() + d + 'f', tipo: 'fiado', monto: Math.round(20 + rnd() * 140), nota: notas[Math.floor(rnd() * notas.length)], fecha: t });
+        const s = saldo(c);
+        const pagaProb = perfil === 1 ? (d > 20 ? 0.1 : 0) : perfil === 2 ? 0.25 : 0.12;
+        if (s > 50 && rnd() < pagaProb) c.movs.push({ id: uid() + d + 'p', tipo: 'pago', monto: perfil === 2 ? s : Math.round(s * (0.4 + rnd() * 0.4) / 10) * 10 || 50, nota: '', fecha: t + 3600000 });
+      }
+      c.movs.sort((a, b) => a.fecha - b.fecha);
+      db.clientes.push(c);
+    });
+    save();
+  }
+
+  // ================= Instalar =================
+  let instalable = null;
+  let instalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); instalable = e; if (view.name !== 'cliente' && !sheetOpen) render(); });
+  window.addEventListener('appinstalled', () => { instalado = true; instalable = null; render(); toast('¡Fiadito instalado!'); });
+
+  // ================= Aviso =================
+  let toastT;
+  function toast(msg, botones = [], ms = 2400) {
+    const t = $('#toast');
+    $('#toastMsg').textContent = msg;
+    const cont = $('#toastBtns');
+    cont.innerHTML = '';
+    botones.forEach((b) => {
+      const el = document.createElement('button');
+      el.textContent = b.t;
+      el.addEventListener('click', () => { t.classList.remove('show'); b.f(); });
+      cont.appendChild(el);
+    });
+    t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms);
+  }
+
+  // ================= Acciones =================
+
+  document.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-tab]');
+    if (tab) { if (view.name !== tab.dataset.tab) { diaSel = -1; go({ name: tab.dataset.tab }); } else window.scrollTo({ top: 0, behavior: 'smooth' }); vibrar(5); return; }
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act;
+    const c = el.dataset.id ? findCliente(el.dataset.id) : null;
+    switch (act) {
+      case 'empezar': sheetTienda(); break;
+      case 'demo': cargarEjemplo(); go({ name: 'inicio' }); toast('Listo, estos son clientes de ejemplo'); break;
+      case 'nuevo-cliente': sheetCliente(null); break;
+      case 'elegir': sheetElegir(); break;
+      case 'abrir': pushNav({ name: 'cliente', id: el.dataset.id }); break;
+      case 'volver': history.back(); break;
+      case 'filtro': filtro = el.dataset.f; vibrar(5); render(); break;
+      case 'editar-cliente': if (c) sheetCliente(c); break;
+      case 'fiar': case 'fiar-rapido': if (c) sheetMovimiento(c, 'fiado'); break;
+      case 'pagar': if (c) sheetMovimiento(c, 'pago'); break;
+      case 'pad-tipo': if (pad) { pad.tipo = el.dataset.t; vibrar(5); pintarPad(); } break;
+      case 'pad-key': padKey(el.dataset.k); break;
+      case 'pad-add': if (pad) { const cur = evalExpr(pad.expr); pad.expr = String(r2(cur + Number(el.dataset.v))); vibrar(6); pintarPad(); } break;
+      case 'pad-set': if (pad) { pad.expr = String(r2(Number(el.dataset.v))); vibrar(6); pintarPad(); } break;
+      case 'pad-nota': if (pad) { const p = el.dataset.p; pad.notas.has(p) ? pad.notas.delete(p) : pad.notas.add(p); vibrar(5); pintarPad(); } break;
+      case 'pad-ok': padGuardar(); break;
+      case 'whatsapp': if (c) abrirWa(c, mensajeCuenta(c)); break;
+      case 'cobrar-lista': if (c) { abrirWa(c, mensajeCuenta(c)); enviados.add(c.id); setTimeout(render, 300); } break;
+      case 'recibo': if (c) { const m = c.movs.find((x) => x.id === el.dataset.mov); if (m) abrirWa(c, mensajeRecibo(c, m)); } break;
+      case 'ver-mov': if (c) { const m = c.movs.find((x) => x.id === el.dataset.mov); if (m) sheetVerMov(c, m); } break;
+      case 'cerrar': closeSheet(); break;
+      case 'pick': if (c) { sheetMovimiento(c, 'fiado'); } break;
+      case 'nuevo-desde-pick': sheetCliente(null, (nuevo) => sheetMovimiento(nuevo, 'fiado')); break;
+      case 'dia': diaSel = Number(el.dataset.k) === diaSel ? -1 : Number(el.dataset.k); vibrar(5); render(); break;
+      case 'rango': rango = Number(el.dataset.r); diaSel = -1; render(); break;
+      case 'borrar-mov':
+        if (c && confirm('¿Borrar este movimiento? No se puede deshacer.')) {
+          c.movs = c.movs.filter((x) => x.id !== el.dataset.mov); save(); closeSheet(); render(); toast('Movimiento borrado');
+        }
+        break;
+      case 'borrar-cliente':
+        if (c) {
+          const s = saldo(c);
+          const msg = s > 0.004 ? `${c.nombre} todavía te debe ${money(s)}. ¿Borrarlo de todos modos? No se puede deshacer.` : `¿Borrar a ${c.nombre}? No se puede deshacer.`;
+          if (confirm(msg)) {
+            db.clientes = db.clientes.filter((x) => x.id !== c.id); save();
+            // quita de una vez la hoja y la vista del cliente del historial
+            closeSheet(true); view = { name: lastTab }; history.go(-2); render(); toast('Cliente borrado');
+          }
+        }
+        break;
+      case 'guardar-tienda': db.tienda.nombre = ($('#tiendaNombre').value || '').trim(); save(); toast('Nombre guardado'); break;
+      case 'respaldar': respaldar(); break;
+      case 'restaurar': $('#fileIn').click(); break;
+      case 'instalar': if (instalable) { instalable.prompt(); instalable.userChoice.finally(() => { instalable = null; render(); }); } break;
+      case 'borrar-todo':
+        if (confirm('¿Borrar TODOS los clientes y movimientos? No se puede deshacer.')) {
+          db = vacio(); save(); query = ''; filtro = 'todos'; view = { name: 'inicio' }; render(); toast('Se borró todo');
+        }
+        break;
+    }
+  });
+
+  // Teclado físico para el teclado de la app (útil en compu)
+  document.addEventListener('keydown', (e) => {
+    if (!pad || !sheetOpen || (document.activeElement && document.activeElement.id === 'padNota')) return;
+    if (/^[0-9]$/.test(e.key)) padKey(e.key);
+    else if (e.key === '.' || e.key === ',') padKey('.');
+    else if (e.key === '+') padKey('+');
+    else if (e.key === 'Backspace') padKey('del');
+    else if (e.key === 'Enter') padGuardar();
+    else return;
+    e.preventDefault();
+  });
+
+  // Al volver a la app (por ejemplo desde WhatsApp), refresca "hoy", "hace X días", etc.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !sheetOpen) render(); });
+
+  render();
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+})();
+</script>
+</body>
+</html>
