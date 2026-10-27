@@ -9,4 +9,4 @@ Libreta de fiado para tienditas. Cobra lo que fías.
 
 Los datos se guardan solo en el celular de cada tienda; no se envían a ningún servidor.
 
-**Usarla:** https://lpena6952-wq.github.io/fiadito/
+**Usarla:** https://fiaditomx.github.io/
