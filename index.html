@@ -477,6 +477,8 @@
     return 'hace ' + m + (m === 1 ? ' mes' : ' meses');
   }
   const findCliente = (id) => db.clientes.find((c) => c.id === id);
+  // Para buscar sin importar acentos ni mayúsculas: "maria" encuentra "María"
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const vibrar = (ms = 8) => {
     try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(ms); } catch (e) {}
   };
@@ -642,7 +644,9 @@
   function vistaInicio() {
     const t = totales();
     const n = db.clientes.length;
-    const sinRespaldo = n > 0 && Date.now() - (db.ultimoRespaldo || 0) > 7 * DIA;
+    // Recordar el respaldo a la semana de empezar (no desde el primer día)
+    const primerMov = db.clientes.reduce((min, c) => Math.min(min, c.creado || Date.now()), Date.now());
+    const sinRespaldo = n > 0 && Date.now() - Math.max(db.ultimoRespaldo || 0, primerMov) > 7 * DIA;
     const counts = contarFiltros();
     return `
       <header class="hero"><div class="wrap">
@@ -684,10 +688,10 @@
     return r;
   }
   function filasLista() {
-    const q = query.trim().toLowerCase();
+    const q = norm(query.trim());
     const items = db.clientes
       .map((c) => ({ c, i: info(c) }))
-      .filter(({ c, i }) => (!q || c.nombre.toLowerCase().includes(q) || (c.tel || '').includes(q))
+      .filter(({ c, i }) => (!q || norm(c.nombre).includes(q) || (c.tel || '').includes(q.replace(/\D/g, '') || '\u0000'))
         && (filtro === 'todos' || (filtro === 'deben' && i.debe) || (filtro === 'atrasados' && i.atrasado) || (filtro === 'corriente' && !i.debe)))
       .sort((a, b) => (b.i.debe - a.i.debe) || (b.i.atrasado - a.i.atrasado) || (b.i.s - a.i.s) || (b.i.ultimo - a.i.ultimo));
     if (!items.length) {
@@ -772,7 +776,7 @@
     const t0 = dias[0].t;
     for (const c of db.clientes) for (const m of c.movs) {
       if (m.fecha < t0) continue;
-      const idx = Math.min(n - 1, Math.floor((inicioDia(m.fecha) - t0) / DIA));
+      const idx = Math.min(n - 1, Math.round((inicioDia(m.fecha) - t0) / DIA));
       if (idx < 0) continue;
       if (m.tipo === 'fiado') dias[idx].f += m.monto; else dias[idx].p += m.monto;
     }
@@ -890,7 +894,7 @@
         </div>
         <p style="text-align:center;color:var(--muted);font-size:13px;margin:18px 0;line-height:2">
           <a href="mailto:fiaditomx@gmail.com" style="color:inherit">Ayuda: fiaditomx@gmail.com</a><br>
-          <a href="privacidad.html" style="color:inherit">Aviso de privacidad</a> · Fiadito versión 2
+          <a href="privacidad.html" style="color:inherit">Aviso de privacidad</a> · Fiadito versión 3
         </p>
       </div>`;
   }
@@ -1039,8 +1043,9 @@
       <h2>${fiar ? 'Fiado apuntado' : 'Abono registrado'}</h2>
       <p>${money(total)} · ${s > 0.004 ? 'Debe ' + money(s) : s < -0.004 ? 'A favor ' + money(s) : 'Quedó al corriente'}</p></div>`;
     setTimeout(() => {
-      if (!sheetOpen) return;
-      closeSheet(); render();
+      // Si la hoja ya se cerró (tocaron afuera), igual refresca la pantalla y muestra el aviso
+      if (sheetOpen) closeSheet();
+      render();
       const btns = [{ t: 'Deshacer', f: () => { c.movs = c.movs.filter((m) => m.id !== mov.id); save(); render(); toast('Listo, se deshizo'); } }];
       if (!fiar && c.tel) btns.unshift({ t: 'Recibo', f: () => abrirWa(c, mensajeRecibo(c, mov)) });
       toast(fiar ? `Le fiaste ${money(total)} a ${primerNombre(c)}` : `${primerNombre(c)} abonó ${money(total)}`, btns, 5000);
@@ -1056,8 +1061,8 @@
       <div class="pick" id="pick"></div>
       <div class="stack"><button class="btn ghost" data-act="nuevo-desde-pick">${I.plus} Cliente nuevo</button></div>`);
     const pintar = (q) => {
-      q = (q || '').toLowerCase();
-      $('#pick').innerHTML = lista.filter((x) => x.c.nombre.toLowerCase().includes(q)).map(({ c, s }) =>
+      q = norm(q);
+      $('#pick').innerHTML = lista.filter((x) => norm(x.c.nombre).includes(q)).map(({ c, s }) =>
         `<button data-act="pick" data-id="${c.id}">${avatar(c)}<span class="grow">${esc(c.nombre)}</span>${s > 0.004 ? `<span class="s num">${money(s)}</span>` : ''}</button>`).join('') || '<p style="color:var(--muted);text-align:center">Nadie con ese nombre.</p>';
     };
     pintar('');
@@ -1101,7 +1106,13 @@
       `Cliente: ${c.nombre}`, `Fecha: ${fechaCorta(mov.fecha)}, ${hora(mov.fecha)}`, `Abono: *${money(mov.monto)}*`,
       run > 0.004 ? `Saldo pendiente: *${money(run)}*` : 'Saldo: *al corriente* 🎉', '', '¡Gracias por su pago!'].join('\n');
   }
-  function telWa(tel) { const d = (tel || '').replace(/\D/g, ''); return d.length === 10 ? '52' + d : d; }
+  // Acepta 55 1234 5678, +52 55 1234 5678 o el viejo +52 1 55 1234 5678
+  function telWa(tel) {
+    const d = (tel || '').replace(/\D/g, '');
+    if (d.length === 10) return '52' + d;
+    if (d.length === 13 && d.startsWith('521')) return '52' + d.slice(3);
+    return d;
+  }
   function abrirWa(c, texto) {
     const t = telWa(c.tel);
     const url = (t ? `https://wa.me/${t}` : 'https://wa.me/') + '?text=' + encodeURIComponent(texto);
@@ -1271,6 +1282,16 @@
     else if (e.key === 'Enter') padGuardar();
     else return;
     e.preventDefault();
+  });
+
+  // Si la app está abierta en otra pestaña y ahí cambian algo, recarga los datos aquí
+  // (así una pestaña vieja no borra lo que apuntó la otra)
+  window.addEventListener('storage', (e) => {
+    if (e.key !== KEY) return;
+    db = load();
+    if (sheetOpen) closeSheet();
+    pad = null;
+    render();
   });
 
   // Al volver a la app (por ejemplo desde WhatsApp), refresca "hoy", "hace X días", etc.
