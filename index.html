@@ -302,6 +302,11 @@
   .setrow .ico { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; flex: none; }
   .setrow .ico svg { width: 22px; height: 22px; }
   .setrow .grow { flex: 1; }
+  /* Interruptor (sí / no) */
+  .switch { appearance: none; -webkit-appearance: none; width: 52px; height: 32px; border-radius: 32px; background: var(--line); position: relative; flex: none; cursor: pointer; transition: background .2s; margin: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s; }
+  .switch:checked { background: var(--brand); }
+  .switch:checked::after { transform: translateX(20px); }
 
   /* ---------- Hoja inferior ---------- */
   .sheet-bg { position: fixed; inset: 0; background: rgba(5,10,7,.45); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
@@ -883,6 +888,17 @@
           </div>
         </div>
         <div class="card">
+          <div class="setrow"><div class="ico" style="background:#e7f8ee;color:#1faa55">${I.wa}</div><div class="grow"><h4>Recomienda Fiadito</h4></div></div>
+          <p>¿Conoces otra tiendita que fía? Mándale Fiadito por WhatsApp.</p>
+          <div class="stack"><button class="btn wa" data-act="recomendar">${I.wa} Recomendar por WhatsApp</button></div>
+        </div>
+        <div class="card">
+          <label class="setrow" for="firma" style="cursor:pointer">
+            <div class="grow"><h4>Firma en tus mensajes</h4><p style="margin:2px 0 0">Agrega "Hecho con Fiadito" al final de las cuentas y recibos que mandas.</p></div>
+            <input type="checkbox" id="firma" class="switch" data-act="toggle-firma" ${db.firma !== false ? 'checked' : ''}>
+          </label>
+        </div>
+        <div class="card">
           <div class="setrow"><div class="ico">${I.install}</div><div class="grow"><h4>Instalar en tu celular</h4></div></div>
           ${instalable && !instalado ? `<div class="stack"><button class="btn primary" data-act="instalar">Instalar Fiadito</button></div>` :
             `<p>${instalado ? 'Ya está instalada. ¡Listo!' : 'En Chrome toca el menú (⋮) y elige "Instalar app". En iPhone, en Safari toca Compartir y luego "Agregar a inicio".'}</p>`}
@@ -894,7 +910,7 @@
         </div>
         <p style="text-align:center;color:var(--muted);font-size:13px;margin:18px 0;line-height:2">
           <a href="mailto:fiaditomx@gmail.com" style="color:inherit">Ayuda: fiaditomx@gmail.com</a><br>
-          <a href="privacidad.html" style="color:inherit">Aviso de privacidad</a> · Fiadito versión 3
+          <a href="privacidad.html" style="color:inherit">Aviso de privacidad</a> · Fiadito versión 4
         </p>
       </div>`;
   }
@@ -1096,15 +1112,19 @@
     } else {
       L.push('Su cuenta está *al corriente*. ¡Muchas gracias por su pago! 🙌');
     }
-    return L.join('\n');
+    return firmar(L).join('\n');
   }
+  // Firma opcional al final de los mensajes (se apaga en Ajustes)
+  const FIRMA = '_Hecho con Fiadito · fiaditomx.github.io_';
+  function firmar(lineas) { if (db.firma !== false) lineas.push('', FIRMA); return lineas; }
+  const MENSAJE_RECOMENDAR = 'Te recomiendo Fiadito 📒: una libreta de fiado gratis en el celular. Apunta lo que te deben, cobra por WhatsApp y funciona sin internet 👉 https://fiaditomx.github.io/';
   function mensajeRecibo(c, mov) {
     const tienda = db.tienda.nombre || 'la tienda';
     let run = 0;
     for (const m of c.movs) { run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto)); if (m.id === mov.id) break; }
     return [`✅ *Recibo de abono* · ${tienda}`, '',
       `Cliente: ${c.nombre}`, `Fecha: ${fechaCorta(mov.fecha)}, ${hora(mov.fecha)}`, `Abono: *${money(mov.monto)}*`,
-      run > 0.004 ? `Saldo pendiente: *${money(run)}*` : 'Saldo: *al corriente* 🎉', '', '¡Gracias por su pago!'].join('\n');
+      run > 0.004 ? `Saldo pendiente: *${money(run)}*` : 'Saldo: *al corriente* 🎉', '', '¡Gracias por su pago!'].concat(db.firma !== false ? ['', FIRMA] : []).join('\n');
   }
   // Acepta 55 1234 5678, +52 55 1234 5678 o el viejo +52 1 55 1234 5678
   function telWa(tel) {
@@ -1260,6 +1280,8 @@
           }
         }
         break;
+      case 'recomendar': window.open('https://wa.me/?text=' + encodeURIComponent(MENSAJE_RECOMENDAR), '_blank', 'noopener'); break;
+      case 'toggle-firma': db.firma = el.checked; save(); vibrar(5); toast(el.checked ? 'Firma activada' : 'Firma desactivada'); break;
       case 'guardar-tienda': db.tienda.nombre = ($('#tiendaNombre').value || '').trim(); save(); toast('Nombre guardado'); break;
       case 'respaldar': respaldar(); break;
       case 'restaurar': $('#fileIn').click(); break;
