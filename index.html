@@ -910,7 +910,7 @@
         </div>
         <p style="text-align:center;color:var(--muted);font-size:13px;margin:18px 0;line-height:2">
           <a href="mailto:fiaditomx@gmail.com" style="color:inherit">Ayuda: fiaditomx@gmail.com</a><br>
-          <a href="privacidad.html" style="color:inherit">Aviso de privacidad</a> · Fiadito versión 4
+          <a href="privacidad.html" style="color:inherit">Aviso de privacidad</a> · Fiadito versión 5
         </p>
       </div>`;
   }
@@ -1055,18 +1055,32 @@
     const s = saldo(c);
     const fiar = tipo === 'fiado';
     pad = null;
+    if (!fiar) {
+      // Abono: se queda la pantalla con un botón grande para mandar el recibo
+      ultimoAbono = { c, mov };
+      const resumen = s > 0.004 ? `Le quedan <b>${money(s)}</b> por liquidar` : s < -0.004 ? `¡Liquidó! Y tiene <b>${money(s)}</b> a su favor` : '¡Cuenta liquidada! 🎉';
+      $('#sheetBody').innerHTML = `<div class="done pago"><div class="ck">${I.check}</div>
+        <h2>Abono de ${money(total)}</h2><p>${resumen}</p></div>
+        <div class="stack">
+          <button class="btn wa" data-act="done-recibo">${I.wa} Mandar recibo por WhatsApp</button>
+          <button class="btn ghost" data-act="done-listo">Listo</button>
+          <button class="btn" style="min-height:40px;font-size:14px;color:var(--muted)" data-act="done-deshacer">Deshacer abono</button>
+        </div>`;
+      onSheetClose = () => render(); // si cierran tocando afuera, igual se actualiza la lista
+      return;
+    }
     $('#sheetBody').innerHTML = `<div class="done ${tipo}"><div class="ck">${I.check}</div>
-      <h2>${fiar ? 'Fiado apuntado' : 'Abono registrado'}</h2>
+      <h2>Fiado apuntado</h2>
       <p>${money(total)} · ${s > 0.004 ? 'Debe ' + money(s) : s < -0.004 ? 'A favor ' + money(s) : 'Quedó al corriente'}</p></div>`;
     setTimeout(() => {
       // Si la hoja ya se cerró (tocaron afuera), igual refresca la pantalla y muestra el aviso
       if (sheetOpen) closeSheet();
       render();
       const btns = [{ t: 'Deshacer', f: () => { c.movs = c.movs.filter((m) => m.id !== mov.id); save(); render(); toast('Listo, se deshizo'); } }];
-      if (!fiar && c.tel) btns.unshift({ t: 'Recibo', f: () => abrirWa(c, mensajeRecibo(c, mov)) });
-      toast(fiar ? `Le fiaste ${money(total)} a ${primerNombre(c)}` : `${primerNombre(c)} abonó ${money(total)}`, btns, 5000);
+      toast(`Le fiaste ${money(total)} a ${primerNombre(c)}`, btns, 5000);
     }, 900);
   }
+  let ultimoAbono = null;
   const primerNombre = (c) => { const p = c.nombre.split(' '); return /^(don|doña|dona)$/i.test(p[0]) && p[1] ? p[0] + ' ' + p[1] : p[0]; };
 
   // ---------- Elegir cliente (desde el botón rápido) ----------
@@ -1090,27 +1104,40 @@
       <div class="sh-head">${avatar(c)}<div class="grow"><h2 style="margin:0;font-size:18px">${m.tipo === 'fiado' ? 'Fiado' : 'Abono'} de ${money(m.monto)}</h2><div class="sub">${esc(c.nombre)} · ${fechaCorta(m.fecha)}, ${hora(m.fecha)}</div></div></div>
       ${m.nota ? `<div class="card" style="margin-top:6px"><p style="margin:0">${esc(m.nota)}</p></div>` : ''}
       <div class="stack">
-        ${m.tipo === 'pago' && c.tel ? `<button class="btn wa" data-act="recibo" data-id="${c.id}" data-mov="${m.id}">${I.wa} Mandar recibo</button>` : ''}
+        ${m.tipo === 'pago' ? `<button class="btn wa" data-act="recibo" data-id="${c.id}" data-mov="${m.id}">${I.wa} Mandar recibo</button>` : ''}
         <button class="btn danger" data-act="borrar-mov" data-id="${c.id}" data-mov="${m.id}">${I.trash} Borrar este movimiento</button>
         <button class="btn ghost" data-act="cerrar">Cerrar</button>
       </div>`);
   }
 
   // ================= WhatsApp =================
+  // Estado de cuenta: amable, claro y sin que suene a regaño
   function mensajeCuenta(c) {
     const s = saldo(c);
     const tienda = db.tienda.nombre || 'la tienda';
-    const L = [`Hola ${primerNombre(c)}, le saluda ${tienda} 👋`];
+    const L = [`Hola ${primerNombre(c)} 👋, le saluda ${tienda}.`];
     if (s > 0.004) {
-      L.push(`Le compartimos su cuenta: su saldo pendiente es de *${money(s)}*.`);
-      const ult = c.movs.slice(-6);
+      L.push(`Le compartimos su cuenta: debe *${money(s)}*.`);
+      // Solo los movimientos de la deuda actual (desde la última vez que quedó en cero)
+      let run = 0, desde = 0, aFavorPrevio = 0;
+      c.movs.forEach((m, idx) => {
+        const antes = run;
+        run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto));
+        if (antes <= 0.004 && run > 0.004) { desde = idx; aFavorPrevio = antes < -0.004 ? -antes : 0; }
+      });
+      const actuales = c.movs.slice(desde);
+      const ult = actuales.slice(-6).reverse();
       if (ult.length) {
-        L.push('', '🧾 Últimos movimientos:');
-        ult.forEach((m) => L.push(`${m.tipo === 'fiado' ? '▫️' : '✅'} ${fechaCorta(m.fecha)} · ${m.tipo === 'fiado' ? 'Fiado' : 'Abono'} ${m.tipo === 'fiado' ? '' : '−'}${money(m.monto)}${m.nota ? ' (' + m.nota + ')' : ''}`));
+        L.push('', '🧾 Movimientos de esta cuenta:');
+        ult.forEach((m) => L.push(`${m.tipo === 'fiado' ? '▫️' : '✅'} ${fechaCorta(m.fecha)} · ${m.tipo === 'fiado' ? 'Fiado' : 'Abono'} ${money(m.monto)}${m.nota ? ' (' + m.nota + ')' : ''}`));
+        if (actuales.length > 6) L.push(`… y ${actuales.length - 6} movimientos más`);
+        if (aFavorPrevio) L.push(`✅ Saldo a favor que tenía: ${money(aFavorPrevio)}`);
       }
-      L.push('', 'Puede pasar a abonar cuando guste. ¡Gracias por su preferencia! 🙏');
+      L.push('', 'Puede abonar poco a poco cuando guste. ¡Gracias por su preferencia! 🙏');
+    } else if (s < -0.004) {
+      L.push(`Su cuenta está *al corriente* y tiene *${money(s)} a su favor* para su próxima compra. ¡Gracias por su preferencia! 🙌`);
     } else {
-      L.push('Su cuenta está *al corriente*. ¡Muchas gracias por su pago! 🙌');
+      L.push('Su cuenta está *al corriente*, no debe nada. ¡Gracias por su preferencia! 🙌');
     }
     return firmar(L).join('\n');
   }
@@ -1118,13 +1145,34 @@
   const FIRMA = '_Hecho con Fiadito · fiaditomx.github.io_';
   function firmar(lineas) { if (db.firma !== false) lineas.push('', FIRMA); return lineas; }
   const MENSAJE_RECOMENDAR = 'Te recomiendo Fiadito 📒: una libreta de fiado gratis en el celular. Apunta lo que te deben, cobra por WhatsApp y funciona sin internet 👉 https://fiaditomx.github.io/';
+  // Cómo quedó la cuenta justo después de un abono: lo que falta y cuánto lleva pagado de esta deuda
+  function estadoTrasAbono(c, mov) {
+    let run = 0, fiadoCiclo = 0, pagadoCiclo = 0;
+    for (const m of c.movs) {
+      if (run <= 0.004) { fiadoCiclo = 0; pagadoCiclo = 0; } // empieza una deuda nueva
+      if (m.tipo === 'fiado') fiadoCiclo += m.monto; else pagadoCiclo += m.monto;
+      run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto));
+      if (m.id === mov.id) break;
+    }
+    return { queda: run, mitad: run > 0.004 && fiadoCiclo > 0 && pagadoCiclo >= fiadoCiclo / 2 };
+  }
+  // Recibo de abono: dice cuánto pagó, cuánto le falta o si ya liquidó
   function mensajeRecibo(c, mov) {
-    const tienda = db.tienda.nombre || 'la tienda';
-    let run = 0;
-    for (const m of c.movs) { run = r2(run + (m.tipo === 'fiado' ? m.monto : -m.monto)); if (m.id === mov.id) break; }
-    return [`✅ *Recibo de abono* · ${tienda}`, '',
-      `Cliente: ${c.nombre}`, `Fecha: ${fechaCorta(mov.fecha)}, ${hora(mov.fecha)}`, `Abono: *${money(mov.monto)}*`,
-      run > 0.004 ? `Saldo pendiente: *${money(run)}*` : 'Saldo: *al corriente* 🎉', '', '¡Gracias por su pago!'].concat(db.firma !== false ? ['', FIRMA] : []).join('\n');
+    const tienda = db.tienda.nombre;
+    const { queda, mitad } = estadoTrasAbono(c, mov);
+    const n = primerNombre(c);
+    let L;
+    if (queda > 0.004) {
+      L = [`Hola ${n} 👋`, `Recibimos su abono de *${money(mov.monto)}* ✅`, `Le quedan *${money(queda)}* para liquidar su cuenta.`];
+      if (mitad) L.push('¡Ya lleva más de la mitad! 💪');
+      L.push('¡Gracias por su pago!');
+    } else {
+      L = [`Hola ${n} 🎉`, `Recibimos su abono de *${money(mov.monto)}* y su cuenta quedó *liquidada*. ¡Ya no debe nada!`];
+      if (queda < -0.004) L.push(`Además le quedan *${money(queda)} a su favor* para su próxima compra.`);
+      L.push('Muchas gracias por su pago y su confianza. Aquí lo esperamos 🙌');
+    }
+    if (tienda) L.push(`— ${tienda}`);
+    return firmar(L).join('\n');
   }
   // Acepta 55 1234 5678, +52 55 1234 5678 o el viejo +52 1 55 1234 5678
   function telWa(tel) {
@@ -1278,6 +1326,16 @@
             // quita de una vez la hoja y la vista del cliente del historial
             closeSheet(true); view = { name: lastTab }; history.go(-2); render(); toast('Cliente borrado');
           }
+        }
+        break;
+      case 'done-recibo':
+        if (ultimoAbono) { abrirWa(ultimoAbono.c, mensajeRecibo(ultimoAbono.c, ultimoAbono.mov)); closeSheet(); toast('Recibo listo para enviar'); }
+        break;
+      case 'done-listo': closeSheet(); if (ultimoAbono) toast(`${primerNombre(ultimoAbono.c)} abonó ${money(ultimoAbono.mov.monto)}`); break;
+      case 'done-deshacer':
+        if (ultimoAbono) {
+          const { c: cc, mov: mm } = ultimoAbono;
+          cc.movs = cc.movs.filter((m) => m.id !== mm.id); save(); ultimoAbono = null; closeSheet(); toast('Listo, se deshizo el abono');
         }
         break;
       case 'recomendar': window.open('https://wa.me/?text=' + encodeURIComponent(MENSAJE_RECOMENDAR), '_blank', 'noopener'); break;

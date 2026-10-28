@@ -1,6 +1,6 @@
 // Guarda la app en el celular para que abra al instante, aunque no haya señal o sea mala.
 // Cambia VERSION cada vez que publiques una actualización.
-const VERSION = 'fiadito-v11';
+const VERSION = 'fiadito-v12';
 const ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'privacidad.html'];
 
 self.addEventListener('install', (e) => {
