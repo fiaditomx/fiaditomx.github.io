@@ -3,6 +3,9 @@
       "target": {
         "namespace": "android_app",
         "package_name": "io.github.fiaditomx.app",
-        "sha256_cert_fingerprints": ["14:1F:70:98:89:D8:DB:E9:42:47:6C:97:7B:DA:B4:6D:F8:B6:7C:77:4B:FE:CC:34:7F:5F:6D:46:9E:39:D3:A6"]
+        "sha256_cert_fingerprints": [
+          "14:1F:70:98:89:D8:DB:E9:42:47:6C:97:7B:DA:B4:6D:F8:B6:7C:77:4B:FE:CC:34:7F:5F:6D:46:9E:39:D3:A6",
+          "FC:F7:59:7B:73:4A:CF:11:C9:27:7A:90:B0:70:59:06:6B:A8:9D:03:66:2C:6B:92:50:A0:F4:FA:60:15:CA:C6"
+        ]
       }
     }]
